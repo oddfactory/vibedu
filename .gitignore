@@ -1,0 +1,39 @@
+# 런타임 데이터 (개인정보 포함 - Git 제외)
+users.json
+qna.json
+curriculum.json
+
+# 업로드된 슬라이드 파일
+slides/
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# 가상 환경
+.venv/
+venv/
+env/
+ENV/
+
+# Streamlit secrets (로컬 환경)
+.streamlit/secrets.toml
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 임시 파일
+*.tmp
+*.log
+sample_slides.pptx
+sample_slides.pdf
