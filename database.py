@@ -316,5 +316,168 @@ def extract_pptx_notes(pptx_path: str, notes_json_path: str) -> bool:
         print(f"Failed to extract PPTX notes: {e}")
         return False
 
+
+# ─── USER & AUTH SERVICES ────────────────────────────────────────────────────
+
+def authenticate_user(username: str, password: str) -> dict | None:
+    """Validate user credentials and return user info dict or None."""
+    users = load_users()
+    hashed = hash_password(password)
+    if username in users and users[username]["password"] == hashed:
+        return {
+            "username": username,
+            "name": users[username].get("name", username),
+            "is_admin": users[username].get("is_admin", False)
+        }
+    return None
+
+def create_user(username: str, name: str, password: str) -> tuple[bool, str]:
+    """Create a new user. Automatically assigns admin if username is 'admin' or name is '관리자'."""
+    if not username.strip() or not name.strip() or not password.strip():
+        return False, "모든 항목을 입력해 주세요."
+    if len(username) < 3:
+        return False, "아이디는 3자 이상이어야 합니다."
+        
+    users = load_users()
+    if username in users:
+        return False, "이미 존재하는 아이디입니다. 다른 아이디를 사용해 주세요."
+        
+    is_admin = (username == "admin") or (name == "관리자")
+    users[username] = {
+        "password": hash_password(password),
+        "name": name,
+        "is_admin": is_admin
+    }
+    save_users(users)
+    return True, "회원가입이 완료되었습니다!"
+
+def delete_user(username: str) -> bool:
+    """Delete user from records by username."""
+    users = load_users()
+    if username in users:
+        users.pop(username)
+        save_users(users)
+        return True
+    return False
+
+def update_user_password(username: str, current_pw: str, new_pw: str) -> tuple[bool, str]:
+    """Change user password after validation."""
+    if not current_pw.strip() or not new_pw.strip():
+        return False, "모든 항목을 입력해 주세요."
+        
+    users = load_users()
+    if username not in users:
+        return False, "존재하지 않는 회원입니다."
+        
+    hashed_curr = hash_password(current_pw)
+    if users[username]["password"] != hashed_curr:
+        return False, "현재 비밀번호가 올바르지 않습니다."
+        
+    users[username]["password"] = hash_password(new_pw)
+    save_users(users)
+    return True, "비밀번호가 성공적으로 변경되었습니다!"
+
+
+# ─── CURRICULUM SERVICES ──────────────────────────────────────────────────────
+
+def add_chapter(title: str) -> str:
+    """Add a new chapter to the curriculum and return its ID."""
+    curr_list = load_curriculum()
+    existing_ids = []
+    for c in curr_list:
+        try:
+            existing_ids.append(int(c['id']))
+        except ValueError:
+            pass
+    new_ch_id = str(max(existing_ids) + 1) if existing_ids else "1"
+    
+    new_chapter = {
+        "id": new_ch_id,
+        "title": title,
+        "content": f"# {title}\n\n새 단원이 추가되었습니다. 여기에 실시간 교육용 슬라이드 내용을 작성하세요.\n\n### 💻 가이드 코드 블록\n```python\n# 코드를 작성하세요\n```",
+        "slides_visible": True
+    }
+    curr_list.append(new_chapter)
+    save_curriculum(curr_list)
+    return new_ch_id
+
+def delete_chapter(chapter_id: str) -> bool:
+    """Delete a chapter by ID."""
+    curr_list = load_curriculum()
+    original_len = len(curr_list)
+    updated_list = [c for c in curr_list if c['id'] != chapter_id]
+    if len(updated_list) < original_len:
+        save_curriculum(updated_list)
+        return True
+    return False
+
+def update_chapter(chapter_id: str, title: str, content: str, slides_visible: bool) -> bool:
+    """Update a chapter's properties."""
+    curr_list = load_curriculum()
+    for idx, c in enumerate(curr_list):
+        if c['id'] == chapter_id:
+            curr_list[idx]['title'] = title.strip()
+            curr_list[idx]['content'] = content
+            curr_list[idx]['slides_visible'] = slides_visible
+            save_curriculum(curr_list)
+            return True
+    return False
+
+
+# ─── Q&A SERVICES ─────────────────────────────────────────────────────────────
+
+def add_question(username: str, name: str, question_text: str) -> str:
+    """Register a new question in the Q&A database."""
+    from datetime import datetime
+    qna_list = load_qna()
+    used_ids = {int(q['id']) for q in qna_list if q['id'].isdigit()}
+    new_id = str(max(used_ids, default=0) + 1)
+    
+    qna_list.append({
+        "id": new_id,
+        "username": username,
+        "name": name,
+        "question": question_text.strip(),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "answers": []
+    })
+    save_qna(qna_list)
+    return new_id
+
+def add_answer(question_id: str, username: str, name: str, answer_text: str) -> bool:
+    """Add an answer to an existing question."""
+    from datetime import datetime
+    fresh = load_qna()
+    for idx, item in enumerate(fresh):
+        if item['id'] == question_id:
+            existing = fresh[idx].get("answers", [])
+            ans_ids = {int(a['id']) for a in existing if str(a.get('id', '')).isdigit()}
+            new_ans_id = str(max(ans_ids, default=0) + 1)
+            fresh[idx]["answers"] = existing + [{
+                "id": new_ans_id,
+                "username": username,
+                "name": name,
+                "answer": answer_text.strip(),
+                "answered_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }]
+            save_qna(fresh)
+            return True
+    return False
+
+def delete_question(question_id: str) -> bool:
+    """Delete a question by ID."""
+    fresh = load_qna()
+    original_len = len(fresh)
+    fresh = [q for q in fresh if q['id'] != question_id]
+    if len(fresh) < original_len:
+        save_qna(fresh)
+        return True
+    return False
+
+def clear_all_qna():
+    """Clear all Q&A records."""
+    save_qna([])
+
+
 # Initialize databases on import
 init_db()
